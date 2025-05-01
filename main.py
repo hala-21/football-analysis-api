@@ -4,7 +4,16 @@ import os
 import shutil
 from dotenv import load_dotenv
 from analyzer import VideoAnalyzer
+import requests
+#from analyzer import run_analysis
+#our hosting provider
+#url = "https://team-classifier-api-production.up.railway.app/"
 
+#local host uncomment to test api in your machine
+url = "http://127.0.0.1:3000"
+
+
+video_path = r"C:\Users\HP\Downloads\API\uploads\121364_0.mp4"
 load_dotenv()
 
 app = FastAPI()
@@ -38,3 +47,17 @@ async def analyze_video(file: UploadFile):
         # Cleanup - remove original upload
         if os.path.exists(temp_path):
             os.remove(temp_path)
+            
+            
+            
+            
+            '''
+            apiUrl = "http://localhost:3000/analyze-video"
+            videoUrl = "https://drive.google.com/uc?id=1vVwjW1dE1drIdd4ZSILfbCGPD4weoNiu"
+            outputFile = "result.mp4"
+            
+            (Invoke-WebRequest -Uri $videoUrl).Content |  Invoke-RestMethod -Uri $apiUrl -Method Post -ContentType "multipart/form-data" -OutFile $outputFile
+            
+            
+            
+            '''
