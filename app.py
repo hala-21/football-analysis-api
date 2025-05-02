@@ -136,8 +136,8 @@ def analyze_video():
         PLAYER_DETECTION_MODEL_ID = "football-players-detection-3zvbc/11"
         PLAYER_DETECTION_MODEL = get_model(model_id=PLAYER_DETECTION_MODEL_ID, api_key='vmsJ0NWzacPKCysW55Br')
 
-        frame_generator = sv.get_video_frames_generator(selected_video)
-        frame = next(frame_generator)
+        # frame_generator = sv.get_video_frames_generator(selected_video)
+        # frame = next(frame_generator)
 
         box_annotator = sv.BoxAnnotator(
         color=sv.ColorPalette.from_hex(['#FF8C00', '#00BFFF', '#FF1493', '#FFD700']),
@@ -147,9 +147,6 @@ def analyze_video():
             color=sv.ColorPalette.from_hex(['#FF8C00', '#00BFFF', '#FF1493', '#FFD700']),
             text_color=sv.Color.from_hex('#000000')
         )
-
-        frame_generator = sv.get_video_frames_generator(selected_video)
-        frame = next(frame_generator)
 
         result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
         detections = sv.Detections.from_inference(result)
@@ -182,9 +179,6 @@ def analyze_video():
             height=21,
             outline_thickness=1
         )
-
-        frame_generator = sv.get_video_frames_generator(selected_video)
-        frame = next(frame_generator)
 
         result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
         detections = sv.Detections.from_inference(result)
@@ -225,9 +219,6 @@ def analyze_video():
 
         tracker = sv.ByteTrack()
         tracker.reset()
-
-        frame_generator = sv.get_video_frames_generator(selected_video)
-        frame = next(frame_generator)
 
         result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
         detections = sv.Detections.from_inference(result)
