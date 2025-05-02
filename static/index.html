@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analyze Random Frame</title>
+</head>
+<body>
+    <h1>Random Frame Analyzer</h1>
+    <button onclick="analyze()">Get Random Frame</button>
+    <div id="result">
+        <p>Loading...</p>
+    </div>
+
+    <script>
+        async function analyze() {
+            const response = await fetch('/analyze-video');
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                const img = document.createElement('img');
+                img.src = 'data:image/jpeg;base64,' + data.annotated_frame;
+                img.style.maxWidth = '100%';
+
+                document.getElementById('result').innerHTML = '';
+                document.getElementById('result').appendChild(img);
+            } else {
+                document.getElementById('result').innerText = 'Error: ' + data.detail;
+            }
+        }
+    </script>
+</body>
+</html>
