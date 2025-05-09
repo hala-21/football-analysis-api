@@ -1,31 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Analyze Random Frame</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Analysis</title>
 </head>
 <body>
-    <h1>Random Frame Analyzer</h1>
-    <button onclick="analyze()">Get Random Frame</button>
-    <div id="result">
-        <p>Loading...</p>
-    </div>
+    <h1>Football Analysis</h1>
+    <button id="process-video">Process Video</button>
+    <video id="processed-video" controls style="display: none; width: 100%; max-width: 600px;"></video>
+    <p id="status"></p>
 
     <script>
-        async function analyze() {
-            const response = await fetch('/analyze-video');
-            const data = await response.json();
+        document.getElementById('process-video').addEventListener('click', async () => {
+            const status = document.getElementById('status');
+            const videoElement = document.getElementById('processed-video');
+            status.textContent = 'Processing video...';
 
-            if (data.status === 'success') {
-                const img = document.createElement('img');
-                img.src = 'data:image/jpeg;base64,' + data.annotated_frame;
-                img.style.maxWidth = '100%';
+            try {
+                const response = await fetch('/analyze-video', { method: 'POST' });
+                const data = await response.json();
 
-                document.getElementById('result').innerHTML = '';
-                document.getElementById('result').appendChild(img);
-            } else {
-                document.getElementById('result').innerText = 'Error: ' + data.detail;
+                if (data.status === 'success') {
+                    const videoBlob = new Blob([Uint8Array.from(atob(data.annotated_video), c => c.charCodeAt(0))], { type: 'video/mp4' });
+                    const videoUrl = URL.createObjectURL(videoBlob);
+
+                    videoElement.src = videoUrl;
+                    videoElement.style.display = 'block';
+                    status.textContent = 'Video processed successfully!';
+                } else {
+                    status.textContent = `Error: ${data.detail}`;
+                }
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
             }
-        }
+        });
     </script>
 </body>
 </html>

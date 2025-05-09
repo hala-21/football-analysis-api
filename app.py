@@ -109,157 +109,106 @@ def analyze_video():
 
         selected_video = os.path.join(uploads_dir, video_files[0])
 
-        # 2. Open video and grab a random frame
+        # 2. Open video and check its length
         cap = cv2.VideoCapture(selected_video)
+        fps = cap.get(cv2.CAP_PROP_FPS)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if frame_count <= 0:
+        video_duration = frame_count / fps
+
+        if frame_count <= 0 or fps <= 0:
             cap.release()
             return make_response(jsonify({
                 "status": "error",
-                "detail": "Video has no readable frames"
+                "detail": "Video has no readable frames or invalid FPS"
             }), 400)
 
-        random_frame_index = random.randint(0, frame_count - 1)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, random_frame_index)
-        ret, frame = cap.read()
-        cap.release()
+        # Determine the number of frames to process
+        max_duration = 60  # 1 minute in seconds
+        frames_to_process = int(min(video_duration, max_duration) * fps)
 
-        if not ret:
-            return make_response(jsonify({
-                "status": "error",
-                "detail": "Failed to extract frame"
-            }), 500)
+        # Skip every nth frame to speed up processing
+        frame_skip = 5  # Process every 5th frame
+        frames_to_process = frames_to_process // frame_skip
 
-        # 3. Process frame with your real model + annotators
-        
-        from inference import get_model
-        PLAYER_DETECTION_MODEL_ID = "football-players-detection-3zvbc/11"
-        PLAYER_DETECTION_MODEL = get_model(model_id=PLAYER_DETECTION_MODEL_ID, api_key='vmsJ0NWzacPKCysW55Br')
-
-        # frame_generator = sv.get_video_frames_generator(selected_video)
-        # frame = next(frame_generator)
-
+        # Initialize annotators and tracker
         box_annotator = sv.BoxAnnotator(
-        color=sv.ColorPalette.from_hex(['#FF8C00', '#00BFFF', '#FF1493', '#FFD700']),
-        thickness=2
+            color=sv.ColorPalette.from_hex(['#FF8C00', '#00BFFF', '#FF1493', '#FFD700']),
+            thickness=2
         )
         label_annotator = sv.LabelAnnotator(
             color=sv.ColorPalette.from_hex(['#FF8C00', '#00BFFF', '#FF1493', '#FFD700']),
             text_color=sv.Color.from_hex('#000000')
         )
-
-        result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
-        detections = sv.Detections.from_inference(result)
-
-        labels = [
-            f"{class_name} {confidence:.2f}"
-            for class_name, confidence
-            in zip(detections['class_name'], detections.confidence)
-        ]
-
-        annotated_frame = frame.copy()
-        annotated_frame = box_annotator.annotate(
-            scene=annotated_frame,
-            detections=detections)
-        annotated_frame = label_annotator.annotate(
-            scene=annotated_frame,
-            detections=detections,
-            labels=labels)
-
-            # Video Game style
-        BALL_ID = 0
-
-        ellipse_annotator = sv.EllipseAnnotator(
-            color=sv.ColorPalette.from_hex(['#00BFFF', '#FF1493', '#FFD700']),
-            thickness=2
-        )
-        triangle_annotator = sv.TriangleAnnotator(
-            color=sv.Color.from_hex('#FFD700'),
-            base=25,
-            height=21,
-            outline_thickness=1
-        )
-
-        result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
-        detections = sv.Detections.from_inference(result)
-
-        ball_detections = detections[detections.class_id == BALL_ID]
-        ball_detections.xyxy = sv.pad_boxes(xyxy=ball_detections.xyxy, px=10)
-
-        all_detections = detections[detections.class_id != BALL_ID]
-        all_detections = all_detections.with_nms(threshold=0.5, class_agnostic=True)
-        all_detections.class_id -= 1
-
-        annotated_frame = frame.copy()
-        annotated_frame = ellipse_annotator.annotate(
-            scene=annotated_frame,
-            detections=all_detections)
-        annotated_frame = triangle_annotator.annotate(
-            scene=annotated_frame,
-            detections=ball_detections)
-        
-        # Player Tracking
-        BALL_ID = 0
-
-        ellipse_annotator = sv.EllipseAnnotator(
-            color=sv.ColorPalette.from_hex(['#00BFFF', '#FF1493', '#FFD700']),
-            thickness=2
-        )
-        label_annotator = sv.LabelAnnotator(
-            color=sv.ColorPalette.from_hex(['#00BFFF', '#FF1493', '#FFD700']),
-            text_color=sv.Color.from_hex('#000000'),
-            text_position=sv.Position.BOTTOM_CENTER
-        )
-        triangle_annotator = sv.TriangleAnnotator(
-            color=sv.Color.from_hex('#FFD700'),
-            base=25,
-            height=21,
-            outline_thickness=1
-        )
-
         tracker = sv.ByteTrack()
         tracker.reset()
 
-        result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
-        detections = sv.Detections.from_inference(result)
+        # Load the model
+        from inference import get_model
+        PLAYER_DETECTION_MODEL_ID = "football-players-detection-3zvbc/11"
+        PLAYER_DETECTION_MODEL = get_model(model_id=PLAYER_DETECTION_MODEL_ID, api_key='vmsJ0NWzacPKCysW55Br')
 
-        ball_detections = detections[detections.class_id == BALL_ID]
-        ball_detections.xyxy = sv.pad_boxes(xyxy=ball_detections.xyxy, px=10)
+        # Process the video frame by frame
+        annotated_frames = []
+        for frame_idx in range(frames_to_process):
+            # Skip frames
+            for _ in range(frame_skip - 1):
+                cap.grab()  # Skip the next frame
 
-        all_detections = detections[detections.class_id != BALL_ID]
-        all_detections = all_detections.with_nms(threshold=0.5, class_agnostic=True)
-        all_detections.class_id -= 1
-        all_detections = tracker.update_with_detections(detections=all_detections)
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        labels = [
-            f"#{tracker_id}"
-            for tracker_id
-            in all_detections.tracker_id
-        ]
+            # Apply the model to the frame
+            result = PLAYER_DETECTION_MODEL.infer(frame, confidence=0.3)[0]
+            detections = sv.Detections.from_inference(result)
 
-        annotated_frame = frame.copy()
-        annotated_frame = ellipse_annotator.annotate(
-            scene=annotated_frame,
-            detections=all_detections)
-        annotated_frame = label_annotator.annotate(
-            scene=annotated_frame,
-            detections=all_detections,
-            labels=labels)
-        annotated_frame = triangle_annotator.annotate(
-            scene=annotated_frame,
-            detections=ball_detections)
+            # Annotate the frame
+            labels = [
+                f"{class_name} {confidence:.2f}"
+                for class_name, confidence
+                in zip(detections['class_name'], detections.confidence)
+            ]
 
-        # 4. Encode and respond
-        _, buf = cv2.imencode('.jpg', annotated_frame)
-        b64 = base64.b64encode(buf).decode('utf-8')
+            annotated_frame = frame.copy()
+            annotated_frame = box_annotator.annotate(
+                scene=annotated_frame,
+                detections=detections
+            )
+            annotated_frame = label_annotator.annotate(
+                scene=annotated_frame,
+                detections=detections,
+                labels=labels
+            )
+
+            # Track players
+            all_detections = detections.with_nms(threshold=0.5, class_agnostic=True)
+            all_detections = tracker.update_with_detections(detections=all_detections)
+
+            annotated_frames.append(annotated_frame)
+
+        cap.release()
+
+        # Encode the annotated frames into a video
+        temp_video_path = os.path.join(tempfile.gettempdir(), 'annotated_video.mp4')
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        height, width, _ = annotated_frames[0].shape
+        out = cv2.VideoWriter(temp_video_path, fourcc, fps // frame_skip, (width, height))
+
+        for frame in annotated_frames:
+            out.write(frame)
+        out.release()
+
+        # Encode the video to base64
+        with open(temp_video_path, 'rb') as f:
+            video_data = f.read()
+        b64_video = base64.b64encode(video_data).decode('utf-8')
+
         return make_response(jsonify({
             "status": "success",
-            "annotated_frame": b64,
-            "detections": {
-                "players": int(np.sum(detections.class_id == PLAYER_ID)),
-                "goalkeepers": int(np.sum(detections.class_id == GOALKEEPER_ID)),
-                "referees": int(np.sum(detections.class_id == REFEREE_ID)),
-                "balls": int(np.sum(detections.class_id == BALL_ID))
+            "annotated_video": b64_video,
+            "detections_summary": {
+                "total_frames_processed": len(annotated_frames),
+                "video_duration_processed": min(video_duration, max_duration)
             }
         }), 200)
 
